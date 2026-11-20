@@ -69,4 +69,4 @@ python3 -B -m unittest discover -s tools/repack/tests -v
 
 ## 来源说明
 
-成员定位、校验表改写与 ext2/FAT 几何判定的算法参照 MIT 许可的 A7M4 Fastboot Toolkit（`a7m4/firmware.py` 的 `tar_index` / `update_sum`、`a7m4/fat.py` 的 FAT 几何推导）；本目录为独立重写，不复制其代码，也不引入其 cryptography / dissect 依赖。见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+成员定位、校验表改写与 ext2/FAT 几何判定的算法参照本地 A7M4 Fastboot Toolkit（`a7m4/firmware.py` 的 `tar_index` / `update_sum`、`a7m4/fat.py` 的 FAT 几何推导）；本目录为独立重写，不复制其代码，也不引入其 cryptography / dissect 依赖。该工具链目录自署 MIT，但其上游 `Erlla/sony-a7m4-custom-firmware` 为 GPL-3.0，这一出处差异记录在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

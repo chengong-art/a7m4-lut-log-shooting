@@ -8,6 +8,7 @@
 
 | 项目 | 我们用它做什么 |
 |---|---|
+| [Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware) | 本项目主机侧工具链的移植来源（固定提交 `0332a1fa…`）：fastboot 主机工具、SD 更新救砖入口、七份独立修改方法。我们的 macOS 移植只改驱动绑定、设备锁、BOOTSEL 卷与入口脚本，**固件配方、地址与哈希钉全部沿用未改**。许可为 GPL-3.0，详见下方说明。 |
 | [DavidBuchanan314/ILCE-7M4-RE](https://github.com/DavidBuchanan314/ILCE-7M4-RE) | 串行启动、RP2040 桥、相机侧 fastboot payload 与 eMMC 访问。没有这条通道，后面的分区只读回读与写入都无从谈起。 |
 | [DavidBuchanan314/fwtool.py（a7iv 分支）](https://github.com/DavidBuchanan314/fwtool.py/tree/a7iv) | A7 IV 升级包格式与容器解包。 |
 | [ma1co/fwtool.py](https://github.com/ma1co/fwtool.py) | Sony 固件容器格式与解包的基础实现。 |
@@ -53,6 +54,12 @@
 | [arduino-pico](https://github.com/earlephilhower/arduino-pico) | RP2040 桥固件构建。 |
 | [arduino-cli](https://github.com/arduino/arduino-cli) | 上述构建的命令行驱动。 |
 
+## 备份与恢复
+
+| 项目 | 我们用它做什么 |
+|---|---|
+| [happyfrog2026/a74-recovery-tools](https://github.com/happyfrog2026/a74-recovery-tools) | A7M4 的备份 / 还原路线：「Camera Recovery」桌面应用，把整机备份做成可校验的 snapshot，并提供原厂固件恢复路径。我们对照它核对了备份粒度（含 boot0/boot1、分区表与 SHA）、RP2040 Multi 适配器接法与恢复前置条件，用来检查自己的备份与回滚方案有没有漏项。 |
+
 ## 运行时与测试
 
 | 项目 | 我们用它做什么 |
@@ -65,18 +72,26 @@
 | 项目 | 我们用它做什么 |
 |---|---|
 | [QAQLeonard/a7c2-fl23-research](https://github.com/QAQLeonard/a7c2-fl23-research) | A7C II 的 FL2/FL3 参数与安装研究；其历史配方作为本次 A7M4 的对照。未打包其 payload 或源码。 |
+| [leogenot/sony-a7iv-feature-research](https://github.com/leogenot/sony-a7iv-feature-research) | 直接改变了本项目走向的一份研究：A7 IV 6.02 的产品类是 `PRODUCT_MODEL_LS`、Log Shooting 的 HAITA 规则列举 14 个产品类却不含 LS，属产品级排除。我们在它的结论上定位到具体规则字节码 `0x4364648` 与 `f9 60 c6 06 f9`。它标注的 "Experiment: none" 也是我们最终停下「完整 LS 功能」的直接依据。 |
 | [DavidBuchanan314/Sony-ILCE-7M4-Linux](https://github.com/DavidBuchanan314/Sony-ILCE-7M4-Linux) | 平台 Linux 参考源码。 |
 
-## 两点如实说明
+## 三点如实说明
 
 - **ILCE-7M4-RE 在其源码树中未见明确许可。** 公开可见与署名都不等于再分发授权，因此本仓库只写独立 host 实现并外链，不搬运其 payload、UF2 或源码。若上游后续给出许可，这里会相应更新。
+- **Erlla/sony-a7m4-custom-firmware 是 GPL-3.0。** 我们在本地移植的目录自署 MIT，但它派生自这个 GPL-3.0 上游、且沿用了其固件配方与哈希钉。本仓库**不包含**该移植的任何代码，只记录身份与结论；需要使用移植本身的人，应按上游 GPL-3.0 处理。这一处本地声明与上游许可的不一致尚未在本地修订，不应被当作已解决的授权问题。
 - **QEMU（GPL-2.0）与 squashfs-tools-ng（GPL-3.0 / LGPL-3.0）以外部程序方式使用**，不与本仓库代码链接，也不随本仓库分发。
 
 ## 谢谢
 
+特别感谢 **Erlla**：`sony-a7m4-custom-firmware` 把 fastboot 主机工具、救砖入口和七份修改方法整理成可审查的形态，我们的整个主机侧工作都站在它上面。
+
 特别感谢 **DavidBuchanan314**：没有 ILCE-7M4-RE 里那套 BootROM 串行启动与 RP2040 桥，这个项目连门都进不去。
 
 感谢 **ma1co**：`fwtool.py` 与 PMCA-RE 是所有人理解 Sony 固件容器的起点。
+
+感谢 **leogenot**：那篇 feature research 里的产品级排除结论，让我们在第三轮无进展时停下并承认"这不是工程量问题"。承认做不成，比继续调参有价值。
+
+感谢 **happyfrog2026**：把备份、校验与恢复做成一键路径，并明确写出「有效签名或菜单出现都不等于刷写安全」。这正是这个圈子最缺的那种冷静。
 
 感谢 **Capstone、Unicorn、QEMU** 的维护者：让「离线判定一段指令到底会不会被执行」成为可以重复的实验，而不是猜测。
 

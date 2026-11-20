@@ -40,11 +40,19 @@ binary is covered by this notice or by the MIT grant.
 ## How the licenses layer
 
 The repository as a whole is offered under the PolyForm Noncommercial License
-1.0.0 (`../../LICENSE`). `tools/repack/repack_fdat.py` is this project's own
-code, written from the behaviour of the MIT-licensed toolkit above rather than
-copied from it, so the MIT notice is reproduced here for attribution.
+1.0.0 (`../../LICENSE`).
 
-If any portion of this directory is ever found to be a substantial copy of MIT
-code, that portion stays available under MIT as well; the rest of the
-repository is unaffected. Nothing here grants a commercial license for the
-PolyForm-covered material.
+`tools/repack/repack_fdat.py` is this project's own code. It was written from the
+observable behaviour of the toolkit above — member discovery, checksum rows,
+ext2/FAT geometry — not copied from it, so no upstream source is vendored here.
+The notice is reproduced for attribution.
+
+One provenance correction worth recording: the local toolkit tree declares MIT
+in its own `LICENSE`, but that tree is a port of
+[Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware),
+which is GPL-3.0. That internal inconsistency is the port's, not this
+repository's, and it is unresolved as of this writing. Anyone who needs the port
+itself should treat it under the upstream GPL-3.0 terms.
+
+Nothing here grants a commercial license for the PolyForm-covered material, and
+nothing here relicenses GPL-3.0 upstream code.
