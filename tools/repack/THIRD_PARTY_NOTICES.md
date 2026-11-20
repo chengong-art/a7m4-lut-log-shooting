@@ -47,12 +47,12 @@ observable behaviour of the toolkit above — member discovery, checksum rows,
 ext2/FAT geometry — not copied from it, so no upstream source is vendored here.
 The notice is reproduced for attribution.
 
-One provenance correction worth recording: the local toolkit tree declares MIT
-in its own `LICENSE`, but that tree is a port of
+One provenance point worth recording: that local toolkit tree used to declare
+MIT in its own `LICENSE`, although it is a port of
 [Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware),
-which is GPL-3.0. That internal inconsistency is the port's, not this
-repository's, and it is unresolved as of this writing. Anyone who needs the port
-itself should treat it under the upstream GPL-3.0 terms.
+which is GPL-3.0. The port has since been corrected to GPL-3.0 — verbatim
+gnu.org text, a `NOTICE` recording the upstream commit and the macOS-only change
+scope, and GPL-3.0 metadata in `pyproject.toml`. None of it is vendored here.
 
 Nothing here grants a commercial license for the PolyForm-covered material, and
 nothing here relicenses GPL-3.0 upstream code.
