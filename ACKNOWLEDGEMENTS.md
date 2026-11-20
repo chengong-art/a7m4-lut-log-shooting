@@ -8,7 +8,7 @@
 
 | 项目 | 我们用它做什么 |
 |---|---|
-| [Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware) | 本项目主机侧工具链的移植来源（固定提交 `0332a1fa…`）：fastboot 主机工具、SD 更新救砖入口、七份独立修改方法。我们的 macOS 移植只改驱动绑定、设备锁、BOOTSEL 卷与入口脚本，**固件配方、地址与哈希钉全部沿用未改**。许可为 GPL-3.0，详见下方说明。 |
+| [Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware/tree/0332a1fa94175f17ef8b9287fa42317c95648791) | macOS 主机工具适配的上游，也是本仓库原厂 `BODYDATA.DAT` 解码器所依据的固定 MIT 修订。感谢 Erlla 和 A7M4 Fastboot Toolkit 贡献者公开容器解析与校验实现。 |
 | [DavidBuchanan314/ILCE-7M4-RE](https://github.com/DavidBuchanan314/ILCE-7M4-RE) | 串行启动、RP2040 桥、相机侧 fastboot payload 与 eMMC 访问。没有这条通道，后面的分区只读回读与写入都无从谈起。 |
 | [DavidBuchanan314/fwtool.py（a7iv 分支）](https://github.com/DavidBuchanan314/fwtool.py/tree/a7iv) | A7 IV 升级包格式与容器解包。 |
 | [ma1co/fwtool.py](https://github.com/ma1co/fwtool.py) | Sony 固件容器格式与解包的基础实现。 |
@@ -78,7 +78,7 @@
 ## 三点如实说明
 
 - **ILCE-7M4-RE 在其源码树中未见明确许可。** 公开可见与署名都不等于再分发授权，因此本仓库只写独立 host 实现并外链，不搬运其 payload、UF2 或源码。若上游后续给出许可，这里会相应更新。
-- **Erlla/sony-a7m4-custom-firmware 是 GPL-3.0。** 我们的本地移植目录原先自署 MIT，这对一个配方未改的 GPL-3.0 移植不成立；该目录已改为 GPL-3.0（逐字 gnu.org 全文，新增 `NOTICE` 记录出处与改动范围，`pyproject` 改 `GPL-3.0-only`，README/REFERENCES/两份示例说明同步）。本仓库不包含该移植的任何代码，只记录身份与结论。
+- 本仓库解码器所依据的 Erlla 固定提交 `0332a1fa…` 采用 MIT。上游后续 `main` 改用 GPL-3.0，前版致谢误将该分支许可套用到旧提交。随本仓库提供的解码代码按固定提交的许可署名。 [旧提交的许可](https://github.com/Erlla/sony-a7m4-custom-firmware/blob/0332a1fa94175f17ef8b9287fa42317c95648791/LICENSE) · [GPL-3.0 修订](https://github.com/Erlla/sony-a7m4-custom-firmware/blob/3d80c87d3ad1cf7b44e117dcf77bc8ab1985eeaa/LICENSE)
 - **QEMU（GPL-2.0）与 squashfs-tools-ng（GPL-3.0 / LGPL-3.0）以外部程序方式使用**，不与本仓库代码链接，也不随本仓库分发。
 
 ## 谢谢

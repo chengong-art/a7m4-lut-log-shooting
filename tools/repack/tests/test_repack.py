@@ -6,6 +6,7 @@ they cover the offset arithmetic, the checksum-row rewrite, and each refusal.
 """
 from __future__ import annotations
 
+import errno
 import io
 import struct
 import sys
@@ -13,11 +14,13 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 from zlib import crc32
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from repack_fdat import Refusal, build, read_region, scan_members  # noqa: E402
+import repack_fdat  # noqa: E402
+from repack_fdat import Refusal, build, main, read_region, scan_members  # noqa: E402
 
 PREFIX = "0700_part_image/"
 SUM = "0701_part_image_sum/part_image.sum"
@@ -96,7 +99,7 @@ class RepackTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def pack(self, name: str = "out.fdat", **overrides) -> Path:
+    def pack_args(self, name: str = "out.fdat", **overrides) -> dict:
         covering = {AP: self.ap, CP: self.cp} | overrides.pop("partitions", {})
         for member, data in covering.items():
             target = self.root / ("ap.img" if member == AP else "cp.img")
@@ -115,6 +118,10 @@ class RepackTest(unittest.TestCase):
             "sum_member": SUM,
         }
         arguments.update(overrides)
+        return arguments
+
+    def pack(self, name: str = "out.fdat", **overrides) -> Path:
+        arguments = self.pack_args(name, **overrides)
         build(**arguments)
         return arguments["output"]
 
@@ -210,6 +217,86 @@ class RepackTest(unittest.TestCase):
         with self.assertRaises(Refusal) as caught:
             self.pack(name="out2.fdat")
         self.assertEqual(caught.exception.code, "MANIFEST")
+
+    def test_concurrent_creator_keeps_its_output(self) -> None:
+        output = self.root / "out.fdat"
+        original_link = repack_fdat.os.link
+
+        def racing_link(source, destination, *arguments, **keywords):
+            Path(destination).write_bytes(b"peer")
+            return original_link(source, destination, *arguments, **keywords)
+
+        with mock.patch.object(repack_fdat.os, "link", side_effect=racing_link):
+            with self.assertRaises(Refusal) as caught:
+                self.pack()
+        self.assertEqual(caught.exception.code, "EXISTS")
+        self.assertEqual(output.read_bytes(), b"peer")
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
+
+    def test_linkless_filesystem_is_refused_without_residue(self) -> None:
+        def unsupported(*arguments, **keywords):
+            raise OSError(errno.EPERM, "Operation not permitted")
+
+        with mock.patch.object(repack_fdat.os, "link", side_effect=unsupported):
+            with self.assertRaises(Refusal) as caught:
+                self.pack()
+        self.assertEqual(caught.exception.code, "OUTPUT")
+        self.assertFalse((self.root / "out.fdat").exists())
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
+
+    def test_input_rewrite_after_pin_cannot_change_output(self) -> None:
+        ap_image, ap_path = self.new_ap, self.root / "ap.img"
+        real_stage = repack_fdat.stage_input
+
+        def stage_then_mutate(path, directory, expected, scratch):
+            staged = real_stage(path, directory, expected, scratch)
+            if path == ap_path:
+                path.write_bytes(ext2_stub(b"evil"))
+            return staged
+
+        arguments = self.pack_args(partitions={AP: ap_image})
+        with mock.patch.object(repack_fdat, "stage_input", side_effect=stage_then_mutate):
+            digest = build(**arguments)
+        written = self.members(arguments["output"])
+        self.assertEqual(written[f"{PREFIX}{AP}"], ap_image)
+        self.assertEqual(written[SUM].decode("ascii").splitlines()[1].split(",")[1],
+                         f"{crc32(ap_image):08x}")
+        self.assertEqual(digest, _sha(arguments["output"]))
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
+
+    def test_refusal_after_staging_leaves_no_partial_output(self) -> None:
+        broken = bytearray(self.new_ap)
+        broken[1080:1082] = b"\x00\x00"
+        with self.assertRaises(Refusal) as caught:
+            self.pack(partitions={AP: bytes(broken)})
+        self.assertEqual(caught.exception.code, "EXT2")
+        self.assertFalse((self.root / "out.fdat").exists())
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
+
+    def test_cli_reports_missing_files_as_input_refusals(self) -> None:
+        missing = self.root / "absent.fdat"
+        errors = io.StringIO()
+        with mock.patch.object(sys, "stderr", errors), mock.patch.object(sys, "stdout", io.StringIO()):
+            listing = main(["list", str(missing)])
+            packing = main(["build", str(self.official), "--ap", str(missing), "--ap-sha256", "0" * 64,
+                            "--cp", str(self.root / "cp.img"), "--cp-sha256", "0" * 64,
+                            "--output", str(self.root / "cli.fdat")])
+        self.assertEqual((listing, packing), (1, 1))
+        self.assertEqual(errors.getvalue().count("REFUSED INPUT"), 2)
+        self.assertFalse((self.root / "cli.fdat").exists())
+
+    def test_cli_extract_is_atomic(self) -> None:
+        target = self.root / "member.bin"
+        with mock.patch.object(sys, "stdout", io.StringIO()):
+            self.assertEqual(main(["extract", str(self.official), f"{PREFIX}{AP}", str(target)]), 0)
+        self.assertEqual(target.read_bytes(), self.ap)
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
+
+        errors, absent = io.StringIO(), self.root / "absent.bin"
+        with mock.patch.object(sys, "stderr", errors), mock.patch.object(sys, "stdout", io.StringIO()):
+            self.assertEqual(main(["extract", str(self.official), "no/such", str(absent)]), 1)
+        self.assertFalse(absent.exists())
+        self.assertEqual(list(self.root.glob(".repack-*")), [])
 
 
 def _sha_bytes(data: bytes) -> str:

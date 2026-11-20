@@ -1,57 +1,53 @@
-# 离线复现说明（不涉及真实相机）
+# 从 Sony 原厂 6.02 包重建 v3e2-once
 
-本仓库公开**核心指令修正和输入身份约束**，并非一键构建完成的发行仓库。
+只需自备 Sony α7 IV（ILCE-7M4）6.02 的原厂 `BODYDATA.DAT`。脚本会从 Sony 下载固定版本的 S709 LUT 数据。已有 `s709Cubes.zip` 时，可指定本地路径完成全程离线构建。
 
-## 输入前提
+产物仅供离线研究。它是明文、未签名的 FDAT，`release_ready=false`。
 
-- 具备用户自己合法获得且独立验证身份的 Sony A7 IV 6.02 原厂明文 FDAT：SHA256 `4fd810b8d20ea239e0df01aded90687baef1ca2c8df208a7f58c4989f85799c3`。
-- 具备原研究 v3b 生成物的合法副本（**不在本仓库提供**），FDAT SHA256 `84a96f461a89acd799ba01dca0acfc4d7f0b9adb21461c230a3049a9e838a20c`。
-- 能够从 v3b 与原厂 FDAT 中提取 `dev/nflasha15`（AP ext2）和 `dev/nflasha8`（CP FAT12）。提取与改组包由本仓库的 [`tools/repack/repack_fdat.py`](../tools/repack/repack_fdat.py) 完成，仅需 Python 标准库。
-- 空余磁盘空间足够容纳多个约 754 MB 的明文 FDAT 和 379 MB 的 AP 分区。所有操作仅针对文件副本。
+## 1. 获取并核对原厂文件
 
-## v3b → v3e2 的两条指令修正
+从 [Sony 官方 6.02 下载页](https://support.sony.jp/electronics/support/software/00400195) 取得 `BODYDATA.DAT`。文件大小为 757,480,856 字节。文件名可以不同，SHA-256 必须为 `ad6df47a0a93a46336b9920a0d8891d0c766f8c96fa68ebda8685f6c21621188`。构建器会再次核对尺寸和摘要。
 
-基于原记录：v3b 在 `lib/appFw.so` 的 `0x50BBB04` 和 `0x50BBB08` 两处，依次对应其 AP p15 分区副本上偏移 `0x129E2704` 开始的 8 字节。
+## 2. 准备 Python 环境
 
-| 位置 | v3b（小端字节） | v3e2（小端字节） |
-|---|---|---|
-| `0x129E2704` | `73 06 00 10` — `adr x19,0x50BBBD0` | `53 09 00 10` — `adr x19,0x50BBC2C` |
-| `0x129E2708` | `14 00 80 52` — `mov w20,#0` | `34 00 80 52` — `mov w20,#1` |
+在仓库根目录运行。使用 Python 3.10–3.13。本地输出目录应支持硬链接（例如 APFS、ext4、NTFS），预留 3 GB 可用空间，不含原厂文件本身。FAT 或 exFAT 不支持所需的硬链接。
 
-**示例（仅对已提取的 AP 文件副本，不操作相机或原厂设备）：**
+如尚未取得仓库，先运行 `git clone https://github.com/chengong-art/a7m4-lut-log-shooting.git`，再执行 `cd a7m4-lut-log-shooting`。
 
 ```sh
-python3 scripts/patch_v3b_p15.py /path/to/v3b-p15.img /path/to/v3e2-p15.img
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tools/repack/requirements.txt
 ```
 
-脚本会检验 AP 文件大小、原始 8 字节，并对目标完整文件计算 SHA256；只有生成结果符合文档身份时才成功发布。它不会在原输入文件上修改，且拒绝覆盖现有目标文件。
+Windows 可用 `py -3.13 -m venv .venv`（按已安装的版本调整），并用 `.venv\Scripts\python.exe` 替换文中各步的 `.venv/bin/python`。
 
-## 重组 FDAT：现已可独立复跑
+## 3. 从原厂包构建候选
+
+将 `BODYDATA.DAT` 放在仓库根目录，或传入该文件的实际路径。
 
 ```sh
-python3 tools/repack/repack_fdat.py extract v3b.fdat 0700_part_image/dev/nflasha15 v3b-p15.img
-python3 tools/repack/repack_fdat.py extract official.fdat 0700_part_image/dev/nflasha8 stock-p8.img
-python3 scripts/patch_v3b_p15.py v3b-p15.img v3e2-p15.img
-python3 tools/repack/repack_fdat.py build official.fdat \
-  --ap v3e2-p15.img --ap-sha256 76fbffb9c3b6a497261210eb4be98d5805bbf13f3b00347b334e99a58e055d66 \
-  --cp stock-p8.img  --cp-sha256 62d16a76ac949e7f9ec5b9b1a46c7cdc65148b1a169b8d617c83c441d7806aee \
-  --output v3e2-once.fdat
+.venv/bin/python scripts/check_sha256.py BODYDATA.DAT ad6df47a0a93a46336b9920a0d8891d0c766f8c96fa68ebda8685f6c21621188
+.venv/bin/python tools/repack/build_from_stock.py BODYDATA.DAT --output v3e2-once.fdat
 ```
 
-组包器按官方 FDAT 的原有布局做同尺寸回填，并改写 `part_image.sum` 中两个分区的 CRC32 行；输出头、tar 布局与成员偏移全部沿用官方件。它拒绝尺寸不符、摘要不符、非 ext2 AP、非 FAT12 CP 与已存在的输出。
+如需使用本地 LUT 数据，在第二条命令末尾加上 `--s709-zip /path/to/s709Cubes.zip`。原始 ZIP 可从 [Sony 官方 S709 页面](https://www.sony.jp/ls-camera/knowledge/) 或 [Sony 下载链接](https://www.sony.jp/ls-camera/knowledge/data/s709Cubes.zip) 获取。脚本会核对 ZIP 和 `.cube` 成员的 SHA-256。输出路径已存在时请换一个文件名。
 
-实测（2026-11-21，离线）：上述命令在本机复现 `22e8bf6a7039f6aed375b8c0bdf6c284cf0c0f83ff9a72d089ff007ba82e7a5f`，与归档的 `v3e2-once.fdat` 逐字节相同。细节与安全门见 [`tools/repack/README.md`](../tools/repack/README.md)。
+构建分四步。首先将原厂包解码为明文 FDAT。然后取出 AP 与 CP 分区并准备 LUT 文件。随后从原厂 `appFw.so` 重建候选 AP 分区。最后回填 AP 和原厂 CP，更新分区校验表，校验完整输出后才生成 `v3e2-once.fdat`。`v3b.fdat`、私有 QEMU 夹具和历史候选都无需准备。
 
-这是离线文件身份检查，既不是签名，也不表示可以安装。
+## 4. 核对输出
 
-## 仍未公开的部分
+```sh
+.venv/bin/python scripts/check_sha256.py v3e2-once.fdat 22e8bf6a7039f6aed375b8c0bdf6c284cf0c0f83ff9a72d089ff007ba82e7a5f
+```
 
-**从官方 FDAT 生成 v3b 的链路没有公开**：注入代码洞、扩 `PT_LOAD`、在 ext2 内新建 `data/lut` 并放入四个数据件、改 thunk 指向，都不在本仓库。原研究使用的 `tools/build_log_shooting_candidate.py` 与 `ports/erlla-a7m4-macos/a7m4/` 只是当时的实现，不是本仓库的依赖。
+通过时命令退出码为 `0`。该摘要标识已归档的历史候选。AP、CP、`appFw.so` 和校验表的摘要见 [证据状态](STATUS.md#已登记身份-sha-256)。
 
-因此外部人员能走到「官方 FDAT + 已持有的 v3b → v3e2 并自行核对 `22e8bf6a…`」，但无法从官方件独立造出 v3b，也就无法独立审查 v3b 本身。这是当前公开范围的边界，不是工具缺陷。
+## 构建参数为何固定
 
-如果你能在合法和离线条件下做独立验证，请提交 Issue，记录哈希、工具版本与可复现命令，并且**不要公开任何原厂二进制**。
+归档候选的 ext2 分区包含特定的 inode、物理块分配和时间字段。一般文件系统工具即使写入相同文件，也可能产生不同的分区字节。[布局文件](../tools/repack/v3e2_ap_layout.json) 记录这份候选的文件位置、项目补丁和 ext2 元数据差量。其余 `appFw.so` 字节从读者提供的原厂包取得。两种 `.LUT` 由脚本生成，`.cube` 取自 Sony ZIP。归档的空闲块和块尾还留有旧测试数据与搬移残留，由公式和原厂字节还原。
 
-## 证据限制
+`LUT008.LUT` 按归档候选的历史采样方式重建。该方式只采样原始 S709 立方体边长的 1/32，生成的 16 位字最大值为 23（单位值对应 8192）。复现保留这份近黑数据。项目另保留原样的 Sony S709 `.cube` 文件。
 
-QEMU 只确认了 AP 侧特定观察点的 LUT 包头；没有证明真实 `mpr Init` 返回、第二 LUT 加载、自然机身 UI、CP/ISP/录像。严禁把模拟器观察写成机身功能已实现。
+如已持有 `v3b` 的 AP 分区，可继续使用 `scripts/patch_v3b_p15.py` 做历史对照。低层容器提取和回填工具见 [组包器参考](../tools/repack/README.md)。
+
+QEMU 和 Unicorn 的历史观察见 [证据状态](STATUS.md)。本构建指南验收的是文件字节。真实机身、自然菜单触发、CP MLUT 消费、预览与录像仍未验证。

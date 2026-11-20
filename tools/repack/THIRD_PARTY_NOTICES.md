@@ -1,58 +1,9 @@
 # Third-party notices
 
-## A7M4 Fastboot Toolkit (MIT)
+The BODYDATA.DAT decoder (`stock_dat.py`) adapts read-only container parsing from the A7M4 Fastboot Toolkit by Erlla and contributors. Its source revision is `0332a1fa94175f17ef8b9287fa42317c95648791`. The upstream files used by the decoder retain their MIT grant. [Pinned source tree](https://github.com/Erlla/sony-a7m4-custom-firmware/tree/0332a1fa94175f17ef8b9287fa42317c95648791) · [MIT license text](LICENSE.erlla-a7m4-custom-firmware)
 
-`tools/repack/repack_fdat.py` is an independent reimplementation, but its member
-discovery, checksum-row rewrite and ext2/FAT geometry rules follow:
+The previous notice confused the license of this pinned source with that of a later upstream `main` revision. The later revision uses GPL-3.0. The decoder is based on the MIT revision above. [Later upstream license](https://github.com/Erlla/sony-a7m4-custom-firmware/blob/3d80c87d3ad1cf7b44e117dcf77bc8ab1985eeaa/LICENSE)
 
-- `a7m4/firmware.py` — `tar_index`, `update_sum`
-- `a7m4/fat.py` — FAT12/16 geometry derivation
+The lower-level repacker was written with reference to the toolkit's TAR member lookup, checksum row format and FAT geometry. Project-authored material uses the [repository's PolyForm Noncommercial license](../../LICENSE). The upstream MIT material retains its MIT grant.
 
-Those files are distributed under the MIT License, reproduced below as required.
-
-```
-MIT License
-
-Copyright (c) 2026 A7M4 Fastboot Toolkit contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-No Sony firmware, extracted library, donor colour data or other third-party
-binary is covered by this notice or by the MIT grant.
-
-## How the licenses layer
-
-The repository as a whole is offered under the PolyForm Noncommercial License
-1.0.0 (`../../LICENSE`).
-
-`tools/repack/repack_fdat.py` is this project's own code. It was written from the
-observable behaviour of the toolkit above — member discovery, checksum rows,
-ext2/FAT geometry — not copied from it, so no upstream source is vendored here.
-The notice is reproduced for attribution.
-
-One provenance point worth recording: that local toolkit tree used to declare
-MIT in its own `LICENSE`, although it is a port of
-[Erlla/sony-a7m4-custom-firmware](https://github.com/Erlla/sony-a7m4-custom-firmware),
-which is GPL-3.0. The port has since been corrected to GPL-3.0 — verbatim
-gnu.org text, a `NOTICE` recording the upstream commit and the macOS-only change
-scope, and GPL-3.0 metadata in `pyproject.toml`. None of it is vendored here.
-
-Nothing here grants a commercial license for the PolyForm-covered material, and
-nothing here relicenses GPL-3.0 upstream code.
+Sony firmware is supplied by the reader. Sony S709 LUT data is downloaded from the vendor or read from the reader's verified ZIP. These inputs retain their original rights. [Sony S709 source](https://www.sony.jp/ls-camera/knowledge/)

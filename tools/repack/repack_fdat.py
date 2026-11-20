@@ -15,6 +15,7 @@ import os
 import stat
 import struct
 import sys
+import tempfile
 from pathlib import Path
 from zlib import crc32
 
@@ -49,18 +50,78 @@ def digest_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def crc_file(path: Path) -> int:
-    value = 0
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(BLOCK), b""):
-            value = crc32(chunk, value)
-    return value
-
-
 def require_regular(path: Path) -> None:
-    info = os.lstat(path)
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        raise Refusal("INPUT", f"missing input file: {path}") from None
+    except OSError as error:
+        raise Refusal("INPUT", f"cannot stat {path}: {error}") from None
     refuse(stat.S_ISREG(info.st_mode), "INPUT", f"expected a regular file: {path}")
     refuse(not path.is_symlink(), "INPUT", f"refusing a symlink: {path}")
+
+
+def private_scratch(directory: Path) -> tuple[int, Path]:
+    """Create an exclusive 0600 scratch file next to the destination."""
+    try:
+        descriptor, name = tempfile.mkstemp(dir=directory, prefix=".repack-", suffix=".part")
+    except OSError as error:
+        raise Refusal("OUTPUT", f"cannot create a scratch file in {directory}: {error}") from None
+    return descriptor, Path(name)
+
+
+def stage_input(path: Path, directory: Path, expected: int, scratch: list[Path]) -> tuple[Path, str, int]:
+    """Copy a mutable input once and measure the copy, not the caller's file.
+
+    Re-reading a file the caller may rewrite mid-run would let the accepted
+    SHA256 and the copied bytes disagree, so every check and every write below
+    uses this private snapshot instead.
+    """
+    descriptor, copy = private_scratch(directory)
+    scratch.append(copy)
+    digest = hashlib.sha256()
+    checksum, size = 0, 0
+    with os.fdopen(descriptor, "wb") as target, path.open("rb") as source:
+        while chunk := source.read(BLOCK):
+            size += len(chunk)
+            refuse(size <= expected, "SIZE", f"expected {expected} bytes in {path}")
+            target.write(chunk)
+            digest.update(chunk)
+            checksum = crc32(chunk, checksum)
+        target.flush()
+        os.fsync(target.fileno())
+    refuse(size == expected, "SIZE", f"expected {expected} bytes in {path}")
+    return copy, digest.hexdigest(), checksum
+
+
+def publish(scratch: Path, output: Path) -> None:
+    """Give the finished scratch inode the requested name, only if it is free.
+
+    `os.link` fails rather than replacing, so a concurrent creator's file is
+    never overwritten; the caller unlinks only its own scratch name afterwards.
+    Filesystems without hard links are refused instead of falling back to a
+    rename, which could not promise that exclusivity.
+    """
+    refuse(not output.exists() and not output.is_symlink(), "EXISTS", "output already exists")
+    try:
+        os.link(scratch, output)
+    except FileExistsError:
+        raise Refusal("EXISTS", "output already exists") from None
+    except OSError as error:
+        raise Refusal("OUTPUT", f"cannot create {output}: {error}") from None
+
+
+def sync_directory(directory: Path) -> None:
+    try:
+        descriptor = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(descriptor)
 
 
 def read_region(stream, size: int) -> tuple[int, int]:
@@ -191,6 +252,18 @@ def write_at(stream, offset: int, payload: bytes) -> None:
     stream.write(payload)
 
 
+def crc_region(stream, offset: int, size: int) -> int:
+    """CRC32 of one container region, in bounded chunks instead of one read."""
+    stream.seek(offset)
+    value, remaining = 0, size
+    while remaining:
+        chunk = stream.read(min(BLOCK, remaining))
+        refuse(bool(chunk), "SIZE", "container shrank while reading")
+        value = crc32(chunk, value)
+        remaining -= len(chunk)
+    return value
+
+
 def build(official: Path, ap: Path, ap_sha: str, cp: Path, cp_sha: str, output: Path, *,
           official_size: int = OFFICIAL_SIZE, official_sha: str = OFFICIAL_SHA256,
           members: tuple[tuple[str, int], ...] = PARTITION_MEMBERS,
@@ -201,30 +274,38 @@ def build(official: Path, ap: Path, ap_sha: str, cp: Path, cp_sha: str, output: 
     refuse(output.parent.is_dir(), "EXISTS", "output directory does not exist")
     refuse(official.stat().st_size == official_size, "SIZE", f"expected the {official_size}-byte official FDAT")
     refuse(digest_file(official) == official_sha, "BASELINE", "official FDAT identity mismatch")
-    refuse(ap_sha.lower() == digest_file(ap) and cp_sha.lower() == digest_file(cp), "HASH", "supplied partition SHA256 mismatch")
 
-    with official.open("rb") as source:
-        region = read_region(source, official_size)
-        index = scan_members(source, *region)
-        refuse(sum_member in index, "TAR", "missing checksum member")
-        wanted = {f"{prefix}{name}": size for name, size in members}
-        for name, size in wanted.items():
-            refuse(name in index and index[name][1] == size, "TAR", f"unexpected member geometry: {name}")
-        for name, path in (("dev/nflasha15", ap), ("dev/nflasha8", cp)):
-            refuse(path.stat().st_size == wanted[f"{prefix}{name}"], "SIZE", f"expected {wanted[f'{prefix}{name}']} bytes for {name}")
-        with ap.open("rb") as stream:
-            check_ext2(stream.read(2048))
-        with cp.open("rb") as stream:
-            check_fat12(stream.read(512), cp, cp.stat().st_size)
+    scratch: list[Path] = []
+    try:
+        with official.open("rb") as source:
+            region = read_region(source, official_size)
+            index = scan_members(source, *region)
+            refuse(sum_member in index, "TAR", "missing checksum member")
+            wanted = {f"{prefix}{name}": size for name, size in members}
+            for name, size in wanted.items():
+                refuse(name in index and index[name][1] == size, "TAR", f"unexpected member geometry: {name}")
 
-        sums: dict[str, tuple[int, int, int]] = {}
-        for name, path in (("dev/nflasha15", ap), ("dev/nflasha8", cp)):
-            data_offset, size = index[f"{prefix}{name}"]
-            old_crc = crc32(read_at(source, data_offset, size))
-            sums[name] = (old_crc, size, crc_file(path))
+            staged: dict[str, tuple[Path, str, int]] = {}
+            for name, path, pin in (("dev/nflasha15", ap, ap_sha), ("dev/nflasha8", cp, cp_sha)):
+                copy, digest, checksum = stage_input(path, output.parent, wanted[f"{prefix}{name}"], scratch)
+                refuse(pin.lower() == digest, "HASH", f"supplied SHA256 mismatch for {name}")
+                staged[name] = (copy, digest, checksum)
 
-        try:
-            with output.open("xb+") as target:
+            ap_copy = staged["dev/nflasha15"][0]
+            cp_copy, _, _ = staged["dev/nflasha8"]
+            with ap_copy.open("rb") as stream:
+                check_ext2(stream.read(2048))
+            with cp_copy.open("rb") as stream:
+                check_fat12(stream.read(512), cp_copy, wanted[f"{prefix}dev/nflasha8"])
+
+            sums: dict[str, tuple[int, int, int]] = {}
+            for name in ("dev/nflasha15", "dev/nflasha8"):
+                data_offset, size = index[f"{prefix}{name}"]
+                sums[name] = (crc_region(source, data_offset, size), size, staged[name][2])
+
+            descriptor, scratch_output = private_scratch(output.parent)
+            scratch.append(scratch_output)
+            with os.fdopen(descriptor, "w+b") as target:
                 hasher = hashlib.sha256()
                 source.seek(0)
                 remaining = official_size
@@ -235,16 +316,19 @@ def build(official: Path, ap: Path, ap_sha: str, cp: Path, cp_sha: str, output: 
                     hasher.update(chunk)
                     remaining -= len(chunk)
                 refuse(hasher.hexdigest() == official_sha, "BASELINE", "official FDAT changed during copy")
-                for name, path in (("dev/nflasha15", ap), ("dev/nflasha8", cp)):
-                    copy_region(path, target, *index[f"{prefix}{name}"])
+                for name in ("dev/nflasha15", "dev/nflasha8"):
+                    copy_region(staged[name][0], target, *index[f"{prefix}{name}"])
                 sum_offset, sum_size = index[sum_member]
                 write_at(target, sum_offset, update_sum_rows(read_at(target, sum_offset, sum_size), sums))
                 target.flush()
                 os.fsync(target.fileno())
-        except BaseException:
-            output.unlink(missing_ok=True)
-            raise
-    return digest_file(output)
+            result = digest_file(scratch_output)
+            publish(scratch_output, output)
+            sync_directory(output.parent)
+    finally:
+        for path in scratch:
+            path.unlink(missing_ok=True)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,21 +362,30 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "extract":
             require_regular(args.fdat)
+            refuse(args.output.parent.is_dir(), "EXISTS", "output directory does not exist")
             refuse(not args.output.exists() and not args.output.is_symlink(), "EXISTS", "output already exists")
-            with args.fdat.open("rb") as stream:
-                index = scan_members(stream, *read_region(stream, args.fdat.stat().st_size))
-                refuse(args.member in index, "TAR", f"no such member: {args.member}")
-                offset, size = index[args.member]
-                hasher = hashlib.sha256()
-                with args.output.open("xb") as target:
-                    stream.seek(offset)
-                    remaining = size
-                    while remaining:
-                        chunk = stream.read(min(BLOCK, remaining))
-                        refuse(bool(chunk), "SIZE", "short read")
-                        target.write(chunk)
-                        hasher.update(chunk)
-                        remaining -= len(chunk)
+            descriptor, scratch_output = private_scratch(args.output.parent)
+            try:
+                with args.fdat.open("rb") as stream:
+                    index = scan_members(stream, *read_region(stream, args.fdat.stat().st_size))
+                    refuse(args.member in index, "TAR", f"no such member: {args.member}")
+                    offset, size = index[args.member]
+                    hasher = hashlib.sha256()
+                    with os.fdopen(descriptor, "wb") as target:
+                        stream.seek(offset)
+                        remaining = size
+                        while remaining:
+                            chunk = stream.read(min(BLOCK, remaining))
+                            refuse(bool(chunk), "SIZE", "short read")
+                            target.write(chunk)
+                            hasher.update(chunk)
+                            remaining -= len(chunk)
+                        target.flush()
+                        os.fsync(target.fileno())
+                publish(scratch_output, args.output)
+                sync_directory(args.output.parent)
+            finally:
+                scratch_output.unlink(missing_ok=True)
             print(f"{hasher.hexdigest()}  {args.member}  {args.output}")
             return 0
         print(f"{build(args.official, args.ap, args.ap_sha256, args.cp, args.cp_sha256, args.output)}  {args.output}")

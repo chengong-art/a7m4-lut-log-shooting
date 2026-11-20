@@ -1,6 +1,8 @@
 # Never commit proprietary firmware, private captures, or local build outputs
 *.fdat
 *.FDAT
+*.[dD][aA][tT]
+s709Cubes.zip
 *.img
 *.bin
 *.elf
@@ -19,5 +21,6 @@
 archives/
 private/
 firmware/
+.venv/
 __pycache__/
 .DS_Store
