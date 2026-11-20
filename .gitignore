@@ -1,0 +1,23 @@
+# Never commit proprietary firmware, private captures, or local build outputs
+*.fdat
+*.FDAT
+*.img
+*.bin
+*.elf
+*.so
+*.dmp
+*.dump
+*.pcap
+*.pcapng
+*.key
+*.pem
+.env
+.env.*
+*.log
+*.serial
+.scratch/
+archives/
+private/
+firmware/
+__pycache__/
+.DS_Store

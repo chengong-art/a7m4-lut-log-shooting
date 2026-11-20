@@ -1,0 +1,35 @@
+name: 离线复现 / Offline test report
+description: 仅提交静态、离线构建或模拟器实验；请勿连接/刷写实机
+title: "[Offline Test] "
+labels: ["offline-test"]
+body:
+  - type: markdown
+    attributes:
+      value: "**当前不是可刷写固件。请勿上传固件镜像、设备唯一标识或私密数据。**"
+  - type: dropdown
+    id: evidence_type
+    attributes:
+      label: 证据类型
+      options: ["静态分析", "离线构建 / SHA", "QEMU 夹具", "Unicorn / 替身调用", "其他（请解释）"]
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境与版本
+      description: 平台、工具版本、候选包名称与输入 SHA-256（只贴摘要，勿上传镜像）
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: 复现步骤、结果与退出码
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: 本实验不能证明什么？
+      description: 例如 QEMU PASS 并不证明实机菜单/CP/录制链路可用
+    validations:
+      required: true
