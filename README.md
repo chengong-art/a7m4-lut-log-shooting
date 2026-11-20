@@ -47,6 +47,17 @@
 - 不会以研究结果承诺机身可恢复或功能可用；自行承担损坏风险并遵守当地法律和相关权利。
 - 如发现私密信息、未经授权资料等，请先私下联系维护者，不要在公开 Issue 中张贴。详见 [SECURITY.md](SECURITY.md)。
 
+## 许可
+
+本仓库原创内容（文档、脚本、测试）按 **PolyForm Noncommercial License 1.0.0** 提供：允许个人研究、学习、实验与非商业组织使用，**不允许商业用途**。全文见 [LICENSE](LICENSE)，SPDX 标识 `PolyForm-Noncommercial-1.0.0`。
+
+- 这不是 OSI 定义的开源许可——它限制了使用目的，准确说法是「源码可用（source-available）」。
+- 分发时必须一并转交 `LICENSE` 及其中以 `Required Notice:` 开头的行。
+- 提交 Issue / PR 即表示你的贡献按同一许可授权本项目再分发。
+- `tools/repack/` 的算法参照了 MIT 许可的 A7M4 Fastboot Toolkit，归属与许可说明见 [THIRD_PARTY_NOTICES.md](tools/repack/THIRD_PARTY_NOTICES.md)。
+- 本许可不覆盖 Sony 固件、解密镜像、donor 色彩数据等第三方材料；这些材料不由本仓库分发。
+- 构建过程中用到的开源项目与其作者，见 [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md)。
+
 ## 版本来源
 
 研究仓库：`chengong-art/camera-firmware-research`（原仓库为私有，未公开）。

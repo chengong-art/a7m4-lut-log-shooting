@@ -36,3 +36,15 @@ SOFTWARE.
 
 No Sony firmware, extracted library, donor colour data or other third-party
 binary is covered by this notice or by the MIT grant.
+
+## How the licenses layer
+
+The repository as a whole is offered under the PolyForm Noncommercial License
+1.0.0 (`../../LICENSE`). `tools/repack/repack_fdat.py` is this project's own
+code, written from the behaviour of the MIT-licensed toolkit above rather than
+copied from it, so the MIT notice is reproduced here for attribution.
+
+If any portion of this directory is ever found to be a substantial copy of MIT
+code, that portion stays available under MIT as well; the rest of the
+repository is unaffected. Nothing here grants a commercial license for the
+PolyForm-covered material.
